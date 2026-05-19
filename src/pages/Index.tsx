@@ -1,45 +1,36 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 
 const IMG_HERO = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/files/08d4cb1b-fc43-427a-b5f6-395386202d29.jpg";
-const IMG_MESH = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/files/00131e4e-8fa1-42bd-a17d-60e57e2a8636.jpg";
 const IMG_TEAM = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/files/19912d2e-496e-41a2-9268-f7e32bc30cda.jpg";
-const IMG_TRAY = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/files/d261fcd8-c0fc-4c68-aeb2-34569b918cbf.jpg";
 
-const CATALOG_TABS = ["Все", "Клипсаторы", "Сетка", "Плёнка", "Лотки", "Мешки"];
+const CATALOG_API = "https://functions.poehali.dev/57e27975-0947-45d9-bfbb-8fff401b7c60";
 
-const PRODUCTS = [
-  {
-    id: 1, name: "Клипсатор КС-500А", category: "Клипсаторы",
-    img: IMG_HERO, price: "от 380 000 ₽",
-    desc: "Полуавтомат, 500 уп/час, без компрессора, сетка Ø60–200 мм",
-  },
-  {
-    id: 2, name: "Сеточный упаковщик СУ-1200", category: "Сетка",
-    img: IMG_MESH, price: "от 890 000 ₽",
-    desc: "Автомат, 1200 уп/час, двойная подача, встроенная маркировка",
-  },
-  {
-    id: 3, name: "Термоусадочная линия ТУ-600", category: "Плёнка",
-    img: IMG_TRAY, price: "от 540 000 ₽",
-    desc: "600 уп/час, ПВХ/ПОФ-плёнка, формат 200–600 мм",
-  },
-  {
-    id: 4, name: "Лотковый упаковщик ЛУ-800", category: "Лотки",
-    img: IMG_TRAY, price: "Запросить цену",
-    desc: "Автомат, 800 лотков/час, черри, клубника, зелень",
-  },
-  {
-    id: 5, name: "Мешкозашивочная машина МЗ-200", category: "Мешки",
-    img: IMG_MESH, price: "от 120 000 ₽",
-    desc: "200 мешков/час, джутовые и полипропиленовые мешки",
-  },
-  {
-    id: 6, name: "Клипсатор КС-800П Про", category: "Клипсаторы",
-    img: IMG_HERO, price: "от 620 000 ₽",
-    desc: "Полный автомат, 800 уп/час, этикетка wine-glass, без компрессора",
-  },
-];
+type Param = { name: string; value: string };
+type Product = {
+  id: string;
+  name: string;
+  vendor: string;
+  price: number;
+  priceText: string;
+  currency: string;
+  url: string;
+  description: string;
+  pictures: string[];
+  params: Param[];
+};
+
+function formatPrice(p: Product): string {
+  if (!p.price || p.price <= 0) return "Запросить цену";
+  return `${p.price.toLocaleString("ru-RU")} ₽`;
+}
+
+function stripHtml(html: string): string {
+  if (!html) return "";
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return (tmp.textContent || tmp.innerText || "").trim();
+}
 
 const PROBLEMS = [
   { icon: "Timer", title: "Ручная фасовка не справляется", desc: "Срывы сроков, потери клиентов, переработки персонала" },
@@ -125,11 +116,25 @@ const NAV = [
 const PACK_TYPES = ["Картофель", "Морковь", "Лук", "Свёкла", "Черри-томаты", "Огурцы", "Зелень", "Другое"];
 
 export default function Index() {
-  const [activeTab, setActiveTab] = useState("Все");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", phone: "", pack: "", comment: "" });
+
+  // Catalog
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Card picture slider state — index per product
+  const [cardSlideIdx, setCardSlideIdx] = useState<Record<string, number>>({});
+
+  // Product modal
+  const [openProduct, setOpenProduct] = useState<Product | null>(null);
+  const [modalSlideIdx, setModalSlideIdx] = useState(0);
+
+  // Fullscreen lightbox
+  const [lightbox, setLightbox] = useState<{ pictures: string[]; idx: number } | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -137,12 +142,61 @@ export default function Index() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    fetch(CATALOG_API)
+      .then(r => r.json())
+      .then(d => {
+        if (d.products) setProducts(d.products);
+        else setLoadError(d.error || "Не удалось загрузить каталог");
+      })
+      .catch(e => setLoadError(String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+      if (e.key === "ArrowRight") setLightbox(prev => prev ? { ...prev, idx: (prev.idx + 1) % prev.pictures.length } : prev);
+      if (e.key === "ArrowLeft") setLightbox(prev => prev ? { ...prev, idx: (prev.idx - 1 + prev.pictures.length) % prev.pictures.length } : prev);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
+
+  // Lock body scroll when modal open
+  useEffect(() => {
+    if (openProduct || lightbox) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [openProduct, lightbox]);
+
   const scrollTo = (href: string) => {
     document.querySelector(href)?.scrollIntoView({ behavior: "smooth" });
     setMobileOpen(false);
   };
 
-  const filtered = activeTab === "Все" ? PRODUCTS : PRODUCTS.filter(p => p.category === activeTab);
+  const slideCard = useCallback((id: string, total: number, dir: 1 | -1) => {
+    setCardSlideIdx(prev => {
+      const cur = prev[id] ?? 0;
+      const next = (cur + dir + total) % total;
+      return { ...prev, [id]: next };
+    });
+  }, []);
+
+  const openProductCard = (p: Product) => {
+    setOpenProduct(p);
+    setModalSlideIdx(cardSlideIdx[p.id] ?? 0);
+  };
+
+  const modalSlide = (dir: 1 | -1) => {
+    if (!openProduct || openProduct.pictures.length === 0) return;
+    setModalSlideIdx(i => (i + dir + openProduct.pictures.length) % openProduct.pictures.length);
+  };
 
   return (
     <div className="min-h-screen bg-white text-[#1A1A1A]">
@@ -291,50 +345,127 @@ export default function Index() {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
             <div>
               <p className="text-sm font-semibold tracking-widest uppercase mb-1" style={{ color: "var(--orange)" }}>Каталог</p>
-              <h2 className="section-title mb-0">Оборудование</h2>
+              <h2 className="section-title mb-0">Оборудование для упаковки овощей</h2>
             </div>
-            <p className="text-sm text-[#888]">Данные из YML-фида, обновляются ежедневно</p>
+            <p className="text-sm text-[#888]">
+              {loading ? "Загружаем актуальные данные…" : `${products.length} позиций из каталога t-sib.ru`}
+            </p>
           </div>
 
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-2 mb-8">
-            {CATALOG_TABS.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200"
-                style={activeTab === tab
-                  ? { background: "var(--orange)", color: "#fff" }
-                  : { background: "#fff", color: "#555", border: "1px solid #E0E0E0" }}>
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          {/* Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map(prod => (
-              <div key={prod.id} className="card-hover bg-white rounded-xl overflow-hidden border border-gray-100">
-                <div className="aspect-[16/9] overflow-hidden">
-                  <img src={prod.img} alt={prod.name} loading="lazy"
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
-                </div>
-                <div className="p-5">
-                  <p className="text-xs font-semibold mb-1" style={{ color: "var(--orange)" }}>{prod.category}</p>
-                  <h3 className="font-bold text-[#1A1A1A] text-base mb-2">{prod.name}</h3>
-                  <p className="text-sm text-[#666] mb-4 leading-relaxed">{prod.desc}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-lg" style={{ color: "var(--orange)" }}>{prod.price}</span>
-                    <button onClick={() => scrollTo("#contacts")}
-                      className="text-sm font-semibold px-4 py-2 rounded-lg transition-all"
-                      style={{ background: "rgba(255,102,0,0.08)", color: "var(--orange)" }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,102,0,0.18)"; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,102,0,0.08)"; }}>
-                      Подробнее →
-                    </button>
+          {loading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[1,2,3,4,5,6].map(i => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <div className="aspect-[16/10] bg-gray-200 animate-pulse" />
+                  <div className="p-5 space-y-3">
+                    <div className="h-4 w-2/3 bg-gray-200 animate-pulse rounded" />
+                    <div className="h-3 w-full bg-gray-100 animate-pulse rounded" />
+                    <div className="h-3 w-1/2 bg-gray-100 animate-pulse rounded" />
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {loadError && !loading && (
+            <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+              <p className="text-[#555] mb-2">Не удалось загрузить каталог</p>
+              <p className="text-xs text-[#999]">{loadError}</p>
+            </div>
+          )}
+
+          {!loading && !loadError && products.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+              <p className="text-[#555]">В категории пока нет товаров</p>
+            </div>
+          )}
+
+          {!loading && products.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {products.map(prod => {
+                const pics = prod.pictures.length > 0 ? prod.pictures : [IMG_HERO];
+                const idx = cardSlideIdx[prod.id] ?? 0;
+                const safeIdx = Math.min(idx, pics.length - 1);
+                return (
+                  <div key={prod.id} className="card-hover bg-white rounded-xl overflow-hidden border border-gray-100 flex flex-col">
+                    {/* Slider */}
+                    <div className="relative aspect-[16/10] overflow-hidden bg-gray-50 group">
+                      <img
+                        src={pics[safeIdx]}
+                        alt={prod.name}
+                        loading="lazy"
+                        onClick={() => setLightbox({ pictures: pics, idx: safeIdx })}
+                        className="w-full h-full object-contain cursor-zoom-in transition-transform duration-500 hover:scale-105"
+                      />
+
+                      {pics.length > 1 && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); slideCard(prod.id, pics.length, -1); }}
+                            className="absolute top-1/2 left-2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="Предыдущее фото"
+                          >
+                            <Icon name="ChevronLeft" size={18} className="text-[#1A1A1A]" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); slideCard(prod.id, pics.length, 1); }}
+                            className="absolute top-1/2 right-2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 hover:bg-white shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label="Следующее фото"
+                          >
+                            <Icon name="ChevronRight" size={18} className="text-[#1A1A1A]" />
+                          </button>
+                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                            {pics.map((_, i) => (
+                              <span key={i}
+                                className="w-1.5 h-1.5 rounded-full transition-all"
+                                style={{ background: i === safeIdx ? "var(--orange)" : "rgba(255,255,255,0.7)" }} />
+                            ))}
+                          </div>
+                          <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-md">
+                            {safeIdx + 1} / {pics.length}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-5 flex-1 flex flex-col">
+                      <h3 className="font-bold text-[#1A1A1A] text-base mb-2 line-clamp-2 min-h-[3em]">
+                        {prod.name}
+                      </h3>
+
+                      {/* Show top 2 params as preview */}
+                      {prod.params.length > 0 && (
+                        <ul className="mb-4 space-y-1">
+                          {prod.params.slice(0, 2).map((pr, i) => (
+                            <li key={i} className="text-xs text-[#666] flex gap-1.5">
+                              <span className="text-[#999]">{pr.name}:</span>
+                              <span className="font-medium text-[#444] truncate">{pr.value}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100">
+                        <span className="font-bold text-lg" style={{ color: "var(--orange)" }}>
+                          {formatPrice(prod)}
+                        </span>
+                        <button
+                          onClick={() => openProductCard(prod)}
+                          className="text-sm font-semibold px-4 py-2 rounded-lg transition-all"
+                          style={{ background: "rgba(255,102,0,0.08)", color: "var(--orange)" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,102,0,0.18)"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,102,0,0.08)"; }}
+                        >
+                          Подробнее →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -697,6 +828,196 @@ export default function Index() {
           </div>
         </div>
       </footer>
+
+      {/* ── PRODUCT MODAL ── */}
+      {openProduct && (() => {
+        const pics = openProduct.pictures.length > 0 ? openProduct.pictures : [IMG_HERO];
+        const safeIdx = Math.min(modalSlideIdx, pics.length - 1);
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
+            onClick={() => setOpenProduct(null)}
+          >
+            <div
+              className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto relative my-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setOpenProduct(null)}
+                className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white shadow-md hover:bg-gray-100 flex items-center justify-center transition-colors"
+                aria-label="Закрыть"
+              >
+                <Icon name="X" size={20} className="text-[#1A1A1A]" />
+              </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                {/* Slider */}
+                <div className="bg-[#F7F7F7] relative">
+                  <div className="aspect-[4/3] md:aspect-auto md:h-full md:min-h-[460px] relative overflow-hidden">
+                    <img
+                      src={pics[safeIdx]}
+                      alt={openProduct.name}
+                      onClick={() => setLightbox({ pictures: pics, idx: safeIdx })}
+                      className="w-full h-full object-contain cursor-zoom-in p-4"
+                    />
+
+                    {pics.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => modalSlide(-1)}
+                          className="absolute top-1/2 left-3 -translate-y-1/2 w-11 h-11 rounded-full bg-white/95 hover:bg-white shadow-md flex items-center justify-center"
+                          aria-label="Предыдущее фото"
+                        >
+                          <Icon name="ChevronLeft" size={22} className="text-[#1A1A1A]" />
+                        </button>
+                        <button
+                          onClick={() => modalSlide(1)}
+                          className="absolute top-1/2 right-3 -translate-y-1/2 w-11 h-11 rounded-full bg-white/95 hover:bg-white shadow-md flex items-center justify-center"
+                          aria-label="Следующее фото"
+                        >
+                          <Icon name="ChevronRight" size={22} className="text-[#1A1A1A]" />
+                        </button>
+                        <div className="absolute top-3 left-3 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md">
+                          {safeIdx + 1} / {pics.length}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Thumbnails */}
+                  {pics.length > 1 && (
+                    <div className="flex gap-2 p-3 overflow-x-auto border-t border-gray-100 bg-white">
+                      {pics.map((src, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setModalSlideIdx(i)}
+                          className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all"
+                          style={{ borderColor: i === safeIdx ? "var(--orange)" : "transparent" }}
+                        >
+                          <img src={src} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Details */}
+                <div className="p-6 md:p-8 flex flex-col">
+                  <h3 className="font-bold text-xl md:text-2xl text-[#1A1A1A] mb-3 leading-tight">{openProduct.name}</h3>
+
+                  <div className="mb-5">
+                    <div className="font-bold text-2xl md:text-3xl" style={{ color: "var(--orange)" }}>
+                      {formatPrice(openProduct)}
+                    </div>
+                    {openProduct.vendor && (
+                      <p className="text-xs text-[#888] mt-1">Производитель: {openProduct.vendor}</p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  {openProduct.description && (
+                    <div className="mb-5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#999] mb-2">Описание</h4>
+                      <p className="text-sm text-[#444] leading-relaxed line-clamp-6">
+                        {stripHtml(openProduct.description)}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Params */}
+                  {openProduct.params.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#999] mb-2">Характеристики</h4>
+                      <div className="rounded-lg border border-gray-100 divide-y divide-gray-100">
+                        {openProduct.params.map((pr, i) => (
+                          <div key={i} className="flex gap-3 px-3 py-2 text-sm">
+                            <span className="text-[#888] flex-1">{pr.name}</span>
+                            <span className="font-medium text-[#1A1A1A] flex-1 text-right">{pr.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-auto flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => { setOpenProduct(null); setTimeout(() => scrollTo("#contacts"), 100); }}
+                      className="btn-orange flex-1 py-3"
+                    >
+                      Оставить заявку
+                    </button>
+                    <a href="tel:88005004054" className="btn-outline-orange flex-1 py-3 text-center">
+                      Позвонить
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── LIGHTBOX ── */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/95 flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-5 right-5 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+            aria-label="Закрыть"
+          >
+            <Icon name="X" size={22} />
+          </button>
+
+          <div className="absolute top-5 left-5 text-white/80 text-sm font-medium">
+            {lightbox.idx + 1} / {lightbox.pictures.length}
+          </div>
+
+          {lightbox.pictures.length > 1 && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, idx: (lb.idx - 1 + lb.pictures.length) % lb.pictures.length } : lb); }}
+                className="absolute left-5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                aria-label="Предыдущее"
+              >
+                <Icon name="ChevronLeft" size={26} />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, idx: (lb.idx + 1) % lb.pictures.length } : lb); }}
+                className="absolute right-5 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                aria-label="Следующее"
+              >
+                <Icon name="ChevronRight" size={26} />
+              </button>
+            </>
+          )}
+
+          <img
+            src={lightbox.pictures[lightbox.idx]}
+            alt=""
+            onClick={e => e.stopPropagation()}
+            className="max-w-[92vw] max-h-[88vh] object-contain"
+          />
+
+          {lightbox.pictures.length > 1 && (
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 max-w-[92vw] overflow-x-auto px-4">
+              {lightbox.pictures.map((src, i) => (
+                <button
+                  key={i}
+                  onClick={e => { e.stopPropagation(); setLightbox(lb => lb ? { ...lb, idx: i } : lb); }}
+                  className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
+                  style={{ borderColor: i === lightbox.idx ? "var(--orange)" : "transparent", opacity: i === lightbox.idx ? 1 : 0.6 }}
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
