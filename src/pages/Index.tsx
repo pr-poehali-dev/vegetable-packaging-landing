@@ -491,13 +491,16 @@ export default function Index() {
                         {prod.name}
                       </h3>
 
-                      {/* All params, performance first */}
+                      {/* All params, performance first — compact list with check icons */}
                       {prod.params.length > 0 && (
-                        <ul className="mb-4 space-y-1.5">
+                        <ul className="mb-4 space-y-2">
                           {sortParams(prod.params).map((pr, i) => (
-                            <li key={i} className="text-[14px] text-[#444] flex gap-2 leading-snug">
-                              <span className="text-[#888] flex-shrink-0">{pr.name}:</span>
-                              <span className="font-medium text-[#1A1A1A]">{pr.value}</span>
+                            <li key={i} className="flex items-start gap-2 text-[14px] leading-snug">
+                              <Icon name="Check" size={14} className="mt-1 flex-shrink-0" style={{ color: "var(--orange)" }} />
+                              <span className="text-[#444]">
+                                <span className="text-[#888]">{pr.name}: </span>
+                                <span className="font-semibold text-[#1A1A1A]">{pr.value}</span>
+                              </span>
                             </li>
                           ))}
                         </ul>
