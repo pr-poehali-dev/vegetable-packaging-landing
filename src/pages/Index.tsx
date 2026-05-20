@@ -1,5 +1,28 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
+import { captureUtm, readUtm } from "@/lib/utm";
+
+const LEAD_ENDPOINT = "/api/b24-send-lead.php";
+const LOGO_URL = "https://cdn.poehali.dev/files/c2e58201-5268-46dc-90eb-a357a9dc398d.png";
+
+async function sendLead(payload: Record<string, unknown>): Promise<boolean> {
+  try {
+    const res = await fetch(LEAD_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        utm: readUtm(),
+        pageUrl: typeof window !== "undefined" ? window.location.href : "",
+      }),
+    });
+    if (!res.ok) return false;
+    const j = await res.json().catch(() => ({ ok: true }));
+    return j?.ok !== false;
+  } catch {
+    return false;
+  }
+}
 
 const IMG_HERO = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/bucket/98dadd67-336a-47a5-9480-dcbd6c9cfde2.png";
 const IMG_TEAM = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/files/758aa06d-2c1a-4f5b-a919-8eb8e70feaff.jpg";
@@ -168,12 +191,19 @@ export default function Index() {
   const [fosData, setFosData] = useState({ name: "", phone: "", email: "" });
   const [fosErrors, setFosErrors] = useState<{ name?: string; phone?: string; email?: string }>({});
   const [fosSent, setFosSent] = useState(false);
+  const [fosSubmitting, setFosSubmitting] = useState(false);
+
+  // Main form state
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string }>({});
+  const [thanksOpen, setThanksOpen] = useState(false);
 
   const openFos = (productName?: string) => {
     setFosOpen({ productName });
     setFosData({ name: "", phone: "", email: "" });
     setFosErrors({});
     setFosSent(false);
+    setFosSubmitting(false);
   };
 
   const validateFos = () => {
@@ -194,13 +224,46 @@ export default function Index() {
     return Object.keys(errs).length === 0;
   };
 
-  const submitFos = () => {
-    if (!validateFos()) return;
-    // TODO: реальная отправка
-    setFosSent(true);
+  const submitFos = async () => {
+    if (!validateFos() || fosSubmitting) return;
+    setFosSubmitting(true);
+    await sendLead({
+      source: "fos",
+      product: fosOpen?.productName || "",
+      name: fosData.name,
+      phone: fosData.phone,
+      email: fosData.email,
+    });
+    setFosSubmitting(false);
+    setFosOpen(null);
+    setThanksOpen(true);
+  };
+
+  const submitMainForm = async () => {
+    const errs: { name?: string; phone?: string } = {};
+    if (!formData.name.trim() || formData.name.trim().length < 2) errs.name = "Введите имя";
+    const phoneDigits = formData.phone.replace(/\D/g, "");
+    if (!formData.phone.trim() || !PHONE_RE.test(formData.phone) || phoneDigits.length < 10 || phoneDigits.length > 11) {
+      errs.phone = "Неверный телефон";
+    }
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0 || formSubmitting) return;
+
+    setFormSubmitting(true);
+    await sendLead({
+      source: "main_form",
+      name: formData.name,
+      phone: formData.phone,
+      pack: formData.pack,
+      comment: formData.comment,
+    });
+    setFormSubmitting(false);
+    setFormData({ name: "", phone: "", pack: "", comment: "" });
+    setThanksOpen(true);
   };
 
   useEffect(() => {
+    captureUtm();
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
@@ -239,13 +302,13 @@ export default function Index() {
 
   // Lock body scroll when modal open
   useEffect(() => {
-    if (openProduct || lightbox || fosOpen || videoOpen) {
+    if (openProduct || lightbox || fosOpen || videoOpen || thanksOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; };
-  }, [openProduct, lightbox, fosOpen, videoOpen]);
+  }, [openProduct, lightbox, fosOpen, videoOpen, thanksOpen]);
 
   const scrollTo = (href: string) => {
     document.querySelector(href)?.scrollIntoView({ behavior: "smooth" });
@@ -279,13 +342,8 @@ export default function Index() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center h-16 gap-6">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-2 flex-shrink-0 mr-auto">
-            <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ background: "var(--orange)" }}>
-              <Icon name="Package" size={18} className="text-white" />
-            </div>
-            <span className="font-bold text-lg leading-tight text-[#1A1A1A]">
-              Техно<span style={{ color: "var(--orange)" }}>-Сиб</span>
-            </span>
+          <a href="#" className="flex items-center flex-shrink-0 mr-auto">
+            <img src={LOGO_URL} alt="ТЕХНОСИБ" className="h-9 md:h-10 w-auto" />
           </a>
 
           {/* Nav desktop */}
@@ -796,17 +854,21 @@ export default function Index() {
                   <label className="text-xs font-semibold text-[#888] uppercase tracking-wide mb-1.5 block">Ваше имя</label>
                   <input type="text" placeholder="Иван Петров"
                     value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white text-[#1A1A1A] text-base outline-none focus:border-orange-400 transition-colors"
+                    onChange={e => { setFormData({ ...formData, name: e.target.value }); if (formErrors.name) setFormErrors({ ...formErrors, name: undefined }); }}
+                    className="w-full px-4 py-3 rounded-lg border bg-white text-[#1A1A1A] text-base outline-none focus:border-orange-400 transition-colors"
+                    style={{ borderColor: formErrors.name ? "#E53935" : "#E5E7EB" }}
                   />
+                  {formErrors.name && <p className="text-[13px] text-red-500 mt-1">{formErrors.name}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-[#888] uppercase tracking-wide mb-1.5 block">Телефон</label>
                   <input type="tel" placeholder="+7 (___) ___-__-__"
                     value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white text-[#1A1A1A] text-base outline-none focus:border-orange-400 transition-colors"
+                    onChange={e => { setFormData({ ...formData, phone: e.target.value }); if (formErrors.phone) setFormErrors({ ...formErrors, phone: undefined }); }}
+                    className="w-full px-4 py-3 rounded-lg border bg-white text-[#1A1A1A] text-base outline-none focus:border-orange-400 transition-colors"
+                    style={{ borderColor: formErrors.phone ? "#E53935" : "#E5E7EB" }}
                   />
+                  {formErrors.phone && <p className="text-[13px] text-red-500 mt-1">{formErrors.phone}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-[#888] uppercase tracking-wide mb-1.5 block">Что упаковываете?</label>
@@ -828,8 +890,12 @@ export default function Index() {
                     className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-white text-[#1A1A1A] text-base outline-none focus:border-orange-400 transition-colors resize-none"
                   />
                 </div>
-                <button className="btn-orange w-full py-3.5 text-base font-bold">
-                  Отправить заявку
+                <button
+                  onClick={submitMainForm}
+                  disabled={formSubmitting}
+                  className="btn-orange w-full py-3.5 text-base font-bold disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {formSubmitting ? "Отправляем…" : "Отправить заявку"}
                 </button>
                 <p className="text-center text-xs text-[#AAA]">
                   Нажимая кнопку, вы соглашаетесь с политикой конфиденциальности
@@ -846,14 +912,11 @@ export default function Index() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             {/* Col 1: Logo + desc */}
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded flex items-center justify-center" style={{ background: "var(--orange)" }}>
-                  <Icon name="Package" size={15} className="text-white" />
-                </div>
-                <span className="font-bold text-lg">Техно<span style={{ color: "var(--orange)" }}>-Сиб</span></span>
+              <div className="inline-block bg-white rounded-lg px-3 py-2 mb-4">
+                <img src={LOGO_URL} alt="ТЕХНОСИБ" className="h-8 w-auto" />
               </div>
               <p className="text-sm text-white/55 leading-relaxed max-w-xs">
-                Поставка и сервис оборудования для упаковки овощей и фруктов. 20 лет на рынке.
+                Поставка и сервис оборудования для упаковки овощей и фруктов. 25 лет на рынке.
               </p>
             </div>
 
@@ -1165,8 +1228,12 @@ export default function Index() {
                     {fosErrors.email && <p className="text-[13px] text-red-500 mt-1">{fosErrors.email}</p>}
                   </div>
 
-                  <button onClick={submitFos} className="btn-orange w-full py-3.5 text-base">
-                    Отправить
+                  <button
+                    onClick={submitFos}
+                    disabled={fosSubmitting}
+                    className="btn-orange w-full py-3.5 text-base disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {fosSubmitting ? "Отправляем…" : "Отправить"}
                   </button>
                   <p className="text-center text-[12px] text-[#AAA]">
                     Нажимая кнопку, вы соглашаетесь с политикой конфиденциальности
@@ -1214,6 +1281,39 @@ export default function Index() {
               />
             </div>
             <p className="text-white text-center text-sm mt-3 px-4">{videoOpen.title}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── THANKS MODAL ── */}
+      {thanksOpen && (
+        <div
+          className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setThanksOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md p-7 md:p-9 relative text-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setThanksOpen(false)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              aria-label="Закрыть"
+            >
+              <Icon name="X" size={18} className="text-[#1A1A1A]" />
+            </button>
+            <div className="w-16 h-16 mx-auto mb-5 rounded-full flex items-center justify-center" style={{ background: "rgba(255,102,0,0.1)" }}>
+              <Icon name="Check" size={32} style={{ color: "var(--orange)" }} />
+            </div>
+            <h3 className="font-bold text-[22px] text-[#1A1A1A] mb-3 leading-tight">
+              Благодарим за обращение в компанию Техно-Сиб
+            </h3>
+            <p className="text-[#555] leading-relaxed mb-6">
+              Менеджер свяжется с Вами в ближайшее время в часы работы.
+            </p>
+            <button onClick={() => setThanksOpen(false)} className="btn-orange px-10 py-3">
+              Хорошо
+            </button>
           </div>
         </div>
       )}
