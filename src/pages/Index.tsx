@@ -2,7 +2,23 @@ import { useState, useEffect, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 
 const IMG_HERO = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/bucket/98dadd67-336a-47a5-9480-dcbd6c9cfde2.png";
-const IMG_TEAM = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/files/19912d2e-496e-41a2-9268-f7e32bc30cda.jpg";
+const IMG_TEAM = "https://cdn.poehali.dev/projects/3f792b21-d338-4186-a2a6-6c21df1b4449/files/758aa06d-2c1a-4f5b-a919-8eb8e70feaff.jpg";
+
+type VideoItem = { title: string; url: string; thumb: string };
+const VIDEOS: VideoItem[] = [
+  { title: "Комбинационный весовой дозатор для овощей и фруктов DC 143", url: "https://rutube.ru/video/b0b195a66f7a66efbf7ee5b68a6526c7/?playlist=1607970", thumb: "https://rutube.ru/api/video/b0b195a66f7a66efbf7ee5b68a6526c7/thumbnail/?redirect=1" },
+  { title: "Автоматическая клипсующая машина для упаковки овощей и фруктов в сетку WX-35", url: "https://rutube.ru/video/bad3214922dcb129fc87bab9ec2b6fa7/?playlist=1607970", thumb: "https://rutube.ru/api/video/bad3214922dcb129fc87bab9ec2b6fa7/thumbnail/?redirect=1" },
+  { title: "Автоматическая упаковочная линия для штучной упаковки чеснока или лука в сетку SP-4-1", url: "https://rutube.ru/video/2f785693a880b49d52062367861ca109/?playlist=1607970", thumb: "https://rutube.ru/api/video/2f785693a880b49d52062367861ca109/thumbnail/?redirect=1" },
+  { title: "Автоматическая машина для упаковки овощей и фруктов в сетку WD-35", url: "https://rutube.ru/video/dfa2b440a19223aa5db8bf8c11164b8d/?playlist=1607970", thumb: "https://rutube.ru/api/video/dfa2b440a19223aa5db8bf8c11164b8d/thumbnail/?redirect=1" },
+  { title: "Автоматическая линия для взвешивания и упаковки продукта в лотки XC-880", url: "https://rutube.ru/video/1ee3806c9c964425bf382479870f6f29/?playlist=1607970", thumb: "https://rutube.ru/api/video/1ee3806c9c964425bf382479870f6f29/thumbnail/?redirect=1" },
+  { title: "Автоматическая машина для упаковки овощей в сетку B-15", url: "https://rutube.ru/video/884645b517b3accc805ecf3b68e59a36/?playlist=1607970", thumb: "https://rutube.ru/api/video/884645b517b3accc805ecf3b68e59a36/thumbnail/?redirect=1" },
+  { title: "Горизонтальная клипсующая машина для упаковки овощей и фруктов в сетку WW-30", url: "https://rutube.ru/video/477e1d476294f9ffbf390a73b4d5c52d/?playlist=1607970", thumb: "https://rutube.ru/api/video/477e1d476294f9ffbf390a73b4d5c52d/thumbnail/?redirect=1" },
+];
+
+function rutubeEmbedUrl(url: string): string {
+  const m = url.match(/rutube\.ru\/video\/([a-f0-9]+)/i);
+  return m ? `https://rutube.ru/play/embed/${m[1]}` : url;
+}
 
 const CATALOG_API = "https://functions.poehali.dev/57e27975-0947-45d9-bfbb-8fff401b7c60";
 
@@ -61,12 +77,11 @@ const UTP_EQUIP = [
 ];
 
 const UTP_COMPANY = [
-  "20 лет на рынке упаковочного оборудования",
-  "Склад запчастей в РФ — поставка 1–3 рабочих дня",
+  "25 лет на рынке упаковочного оборудования",
+  "Склад запчастей в РФ",
   "Пусконаладка и обучение персонала в комплекте",
   "Расходники у одного поставщика — без поиска",
   "Линии «под ключ» — от проекта до запуска",
-  "Сервисные инженеры по всей РФ, выезд 24–48 ч",
 ];
 
 const CASES = [
@@ -93,19 +108,11 @@ const CASES = [
   },
 ];
 
-const SUPPLIES = [
-  { name: "Сетка-рукав", desc: "Полипропиленовая, Ø60–240 мм, все цвета", icon: "🕸️" },
-  { name: "Клипсы", desc: "Алюминиевые, пластиковые, под любой клипсатор", icon: "📎" },
-  { name: "Этикетки wine-glass", desc: "Сертифицированы для федеральных сетей", icon: "🏷️" },
-  { name: "Плёнка ПВХ/ПОФ", desc: "Термоусадочная, ширина 200–600 мм", icon: "📦" },
-  { name: "Лотки", desc: "Вспенённый ПС, БОПП, картон — любые размеры", icon: "🍱" },
-];
-
 const STEPS = [
   { num: "01", title: "Заявка", desc: "Оставляете запрос онлайн или звоните" },
   { num: "02", title: "Подбор", desc: "Менеджер подбирает модель за 15 минут" },
   { num: "03", title: "Договор", desc: "Согласуем условия, подписываем договор" },
-  { num: "04", title: "Доставка", desc: "Отгрузка со склада, доставка по РФ" },
+  { num: "04", title: "Доставка", desc: "Отгрузка со склада в РФ или Китая" },
   { num: "05", title: "Запуск", desc: "Пусконаладка и обучение в вашем цехе" },
 ];
 
@@ -119,9 +126,14 @@ const FAQS = [
 ];
 
 const NAV = [
-  { label: "Оборудование", href: "#catalog" },
+  { label: "Проблемы", href: "#problems" },
+  { label: "Каталог", href: "#catalog" },
+  { label: "Видео", href: "#videos" },
   { label: "Преимущества", href: "#advantages" },
+  { label: "О компании", href: "#about" },
+  { label: "Кейсы", href: "#cases" },
   { label: "Как работаем", href: "#steps" },
+  { label: "FAQ", href: "#faq" },
   { label: "Контакты", href: "#contacts" },
 ];
 
@@ -147,6 +159,9 @@ export default function Index() {
 
   // Fullscreen lightbox
   const [lightbox, setLightbox] = useState<{ pictures: string[]; idx: number } | null>(null);
+
+  // Video modal
+  const [videoOpen, setVideoOpen] = useState<VideoItem | null>(null);
 
   // Quick contact form (ФОС) — opened per product or generic
   const [fosOpen, setFosOpen] = useState<{ productName?: string } | null>(null);
@@ -224,13 +239,13 @@ export default function Index() {
 
   // Lock body scroll when modal open
   useEffect(() => {
-    if (openProduct || lightbox || fosOpen) {
+    if (openProduct || lightbox || fosOpen || videoOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; };
-  }, [openProduct, lightbox, fosOpen]);
+  }, [openProduct, lightbox, fosOpen, videoOpen]);
 
   const scrollTo = (href: string) => {
     document.querySelector(href)?.scrollIntoView({ behavior: "smooth" });
@@ -274,10 +289,10 @@ export default function Index() {
           </a>
 
           {/* Nav desktop */}
-          <nav className="hidden md:flex items-center gap-6">
+          <nav className="hidden lg:flex items-center gap-4 xl:gap-5">
             {NAV.map(l => (
               <button key={l.href} onClick={() => scrollTo(l.href)}
-                className="text-sm font-medium text-[#444] hover:text-orange-600 transition-colors">
+                className="text-[13px] xl:text-sm font-medium text-[#444] hover:text-orange-600 transition-colors whitespace-nowrap">
                 {l.label}
               </button>
             ))}
@@ -285,23 +300,23 @@ export default function Index() {
 
           {/* Phone + CTA */}
           <div className="hidden md:flex items-center gap-4 ml-4">
-            <a href="tel:88005004054" className="text-sm font-semibold text-[#1A1A1A] hover:text-orange-600 transition-colors">
+            <a href="tel:88005004054" className="text-sm font-semibold text-[#1A1A1A] hover:text-orange-600 transition-colors whitespace-nowrap">
               8-800-500-40-54
             </a>
-            <button onClick={() => scrollTo("#contacts")} className="btn-orange text-sm py-2 px-5">
+            <button onClick={() => openFos()} className="btn-orange text-sm py-2 px-5 whitespace-nowrap">
               Оставить заявку
             </button>
           </div>
 
           {/* Burger */}
-          <button className="md:hidden ml-auto" onClick={() => setMobileOpen(!mobileOpen)}>
+          <button className="lg:hidden ml-auto" onClick={() => setMobileOpen(!mobileOpen)}>
             <Icon name={mobileOpen ? "X" : "Menu"} size={24} className="text-[#1A1A1A]" />
           </button>
         </div>
 
         {/* Mobile menu */}
         {mobileOpen && (
-          <div className="md:hidden bg-white border-t border-gray-100 px-4 py-4 flex flex-col gap-3">
+          <div className="lg:hidden bg-white border-t border-gray-100 px-4 py-4 flex flex-col gap-3 max-h-[80vh] overflow-y-auto">
             {NAV.map(l => (
               <button key={l.href} onClick={() => scrollTo(l.href)}
                 className="text-left text-base font-medium text-[#444] py-2 border-b border-gray-100">
@@ -309,7 +324,7 @@ export default function Index() {
               </button>
             ))}
             <a href="tel:88005004054" className="text-base font-bold text-[#1A1A1A] py-2">8-800-500-40-54</a>
-            <button onClick={() => scrollTo("#contacts")} className="btn-orange w-full mt-1">Оставить заявку</button>
+            <button onClick={() => { setMobileOpen(false); openFos(); }} className="btn-orange w-full mt-1">Оставить заявку</button>
           </div>
         )}
       </header>
@@ -320,11 +335,6 @@ export default function Index() {
 
           {/* Text */}
           <div className="lg:col-span-5 pr-0 lg:pr-4 fade-up">
-            <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "rgba(255,102,0,0.08)", color: "var(--orange)" }}>
-              <span className="w-2 h-2 rounded-full inline-block" style={{ background: "var(--orange)" }} />
-              Официальный дилер • 20 лет на рынке
-            </div>
-
             <h1 className="text-[clamp(28px,4.5vw,52px)] font-bold leading-[1.15] mb-5 text-[#1A1A1A]">
               Оборудование для<br />
               <span style={{ color: "var(--orange)" }}>упаковки овощей</span><br />
@@ -337,7 +347,7 @@ export default function Index() {
             </p>
 
             <div className="flex flex-wrap gap-3 mb-10">
-              <button onClick={() => scrollTo("#contacts")} className="btn-orange text-base px-8 py-3.5">
+              <button onClick={() => openFos()} className="btn-orange text-base px-8 py-3.5">
                 Получить КП
               </button>
               <button onClick={() => scrollTo("#catalog")} className="btn-outline-orange text-base px-8 py-3.5">
@@ -374,10 +384,9 @@ export default function Index() {
       </section>
 
       {/* ── БЛОК 2: ПРОБЛЕМЫ ── */}
-      <section className="py-16 bg-white">
+      <section id="problems" className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Знакомые проблемы?</p>
             <h2 className="section-title">С чем сталкиваются производители</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -399,7 +408,6 @@ export default function Index() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
             <div>
-              <p className="text-sm font-semibold tracking-widest uppercase mb-1" style={{ color: "var(--orange)" }}>Каталог</p>
               <h2 className="section-title mb-0">Оборудование для упаковки овощей</h2>
             </div>
             <p className="text-sm text-[#888]">
@@ -508,10 +516,10 @@ export default function Index() {
                         <div className="font-bold text-xl mb-3" style={{ color: "var(--orange)" }}>
                           {formatPrice(prod)}
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="flex flex-col gap-2">
                           <button
                             onClick={() => openProductCard(prod)}
-                            className="text-[15px] font-semibold px-4 py-2.5 rounded-lg transition-all flex-1"
+                            className="text-[15px] font-semibold px-4 py-2.5 rounded-lg transition-all w-full"
                             style={{ background: "rgba(255,102,0,0.1)", color: "var(--orange)" }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,102,0,0.2)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,102,0,0.1)"; }}
@@ -520,12 +528,12 @@ export default function Index() {
                           </button>
                           <button
                             onClick={() => openFos(prod.name)}
-                            className="text-[15px] font-semibold px-4 py-2.5 rounded-lg transition-all flex-1 text-white"
+                            className="text-[15px] font-semibold px-4 py-2.5 rounded-lg transition-all w-full text-white"
                             style={{ background: "var(--orange)" }}
                             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--orange-light)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--orange)"; }}
                           >
-                            Заявка
+                            Оставить заявку
                           </button>
                         </div>
                       </div>
@@ -538,11 +546,47 @@ export default function Index() {
         </div>
       </section>
 
+      {/* ── ВИДЕО ── */}
+      <section id="videos" className="py-16 bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-10">
+            <h2 className="section-title">Видео работы оборудования</h2>
+            <p className="text-[#888] mt-2">Смотрите машины в действии</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {VIDEOS.map((v, i) => (
+              <button
+                key={i}
+                onClick={() => setVideoOpen(v)}
+                className="card-hover bg-white rounded-xl overflow-hidden border border-gray-100 text-left flex flex-col group"
+              >
+                <div className="relative aspect-video bg-gray-100 overflow-hidden">
+                  <img
+                    src={v.thumb}
+                    alt={v.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110" style={{ background: "var(--orange)" }}>
+                      <Icon name="Play" size={26} className="text-white ml-1" />
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 flex-1">
+                  <p className="font-semibold text-[#1A1A1A] text-[15px] leading-snug line-clamp-3">{v.title}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── БЛОК 4: УТП ОБОРУДОВАНИЯ ── */}
       <section id="advantages" className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Технологии</p>
             <h2 className="section-title">Почему наше оборудование лучше</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -559,16 +603,15 @@ export default function Index() {
       </section>
 
       {/* ── БЛОК 5: УТП КОМПАНИИ ── */}
-      <section className="py-16 bg-[#F7F7F7]">
+      <section id="about" className="py-16 bg-[#F7F7F7]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             {/* Photo */}
             <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
-              <img src={IMG_TEAM} alt="Команда Техно-Сиб" loading="lazy" className="w-full h-full object-cover" />
+              <img src={IMG_TEAM} alt="Овощи в упаковочной сетке" loading="lazy" className="w-full h-full object-cover" />
             </div>
             {/* List */}
             <div>
-              <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Компания</p>
               <h2 className="section-title mb-6">Почему выбирают Техно-Сиб</h2>
               <ul className="space-y-4">
                 {UTP_COMPANY.map((item, i) => (
@@ -580,7 +623,7 @@ export default function Index() {
                   </li>
                 ))}
               </ul>
-              <button onClick={() => scrollTo("#contacts")} className="btn-orange mt-8">
+              <button onClick={() => openFos()} className="btn-orange mt-8">
                 Получить консультацию
               </button>
             </div>
@@ -597,17 +640,16 @@ export default function Index() {
           <p className="text-lg text-white/85 mb-8">
             Расскажите, что упаковываете — подберём решение за 15 минут.
           </p>
-          <button onClick={() => scrollTo("#contacts")} className="btn-white text-base px-10 py-3.5">
+          <button onClick={() => openFos()} className="btn-white text-base px-10 py-3.5">
             Помогите подобрать
           </button>
         </div>
       </section>
 
       {/* ── БЛОК 7: КЕЙСЫ ── */}
-      <section className="py-16 bg-white">
+      <section id="cases" className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Результаты клиентов</p>
             <h2 className="section-title">Кейсы было → стало</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -639,32 +681,10 @@ export default function Index() {
         </div>
       </section>
 
-      {/* ── БЛОК 8: РАСХОДНИКИ ── */}
-      <section className="py-14 bg-[#F7F7F7]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-8">
-            <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Расходные материалы</p>
-            <h2 className="section-title">Расходники у одного поставщика</h2>
-          </div>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {SUPPLIES.map((s, i) => (
-              <div key={i} className="card-hover bg-white rounded-xl border border-gray-100 px-6 py-5 flex items-center gap-4 min-w-[200px]">
-                <span className="text-3xl">{s.icon}</span>
-                <div>
-                  <p className="font-bold text-[#1A1A1A] text-base">{s.name}</p>
-                  <p className="text-xs text-[#888] mt-0.5 max-w-[160px] leading-relaxed">{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── БЛОК 9: ЭТАПЫ ── */}
       <section id="steps" className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Процесс</p>
             <h2 className="section-title">Как мы работаем</h2>
             <p className="text-[#888] mt-2">От заявки до запуска — от 5 рабочих дней</p>
           </div>
@@ -705,10 +725,9 @@ export default function Index() {
       </section>
 
       {/* ── БЛОК 10: FAQ ── */}
-      <section className="py-16 bg-[#F7F7F7]">
+      <section id="faq" className="py-16 bg-[#F7F7F7]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Вопросы и ответы</p>
             <h2 className="section-title">FAQ</h2>
           </div>
           <div className="space-y-3">
@@ -744,7 +763,6 @@ export default function Index() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
             {/* Left text */}
             <div>
-              <p className="text-sm font-semibold tracking-widest uppercase mb-2" style={{ color: "var(--orange)" }}>Бесплатно</p>
               <h2 className="section-title mb-4">Получите подбор и расчёт окупаемости</h2>
               <p className="text-lg text-[#555] mb-8 leading-relaxed">
                 Опишите, что и в каком объёме упаковываете. Менеджер подберёт оборудование
@@ -879,21 +897,6 @@ export default function Index() {
                   <span className="text-[14px] text-white/65 leading-relaxed">Новосибирск, ул. Электрозаводская, 2 к1, офис 304, 314</span>
                 </li>
               </ul>
-              <div className="flex gap-3 mt-4">
-                {[
-                  { icon: "MessageCircle", label: "Telegram" },
-                  { icon: "Send", label: "WhatsApp" },
-                ].map(s => (
-                  <button key={s.label}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
-                    style={{ background: "rgba(255,255,255,0.08)" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--orange)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)"; }}
-                  >
-                    <Icon name={s.icon} size={16} className="text-white" />
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -992,7 +995,6 @@ export default function Index() {
                   {/* Description */}
                   {openProduct.description && (
                     <div className="mb-5">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#999] mb-2">Описание</h4>
                       <p className="text-sm text-[#444] leading-relaxed line-clamp-6">
                         {stripHtml(openProduct.description)}
                       </p>
@@ -1014,16 +1016,13 @@ export default function Index() {
                     </div>
                   )}
 
-                  <div className="mt-auto flex flex-col sm:flex-row gap-3">
+                  <div className="mt-auto">
                     <button
                       onClick={() => { const name = openProduct.name; setOpenProduct(null); setTimeout(() => openFos(name), 150); }}
-                      className="btn-orange flex-1 py-3"
+                      className="btn-orange w-full py-3"
                     >
                       Оставить заявку
                     </button>
-                    <a href="tel:88005004054" className="btn-outline-orange flex-1 py-3 text-center">
-                      Позвонить
-                    </a>
                   </div>
                 </div>
               </div>
@@ -1184,6 +1183,37 @@ export default function Index() {
                 <button onClick={() => setFosOpen(null)} className="btn-orange px-8">Готово</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── VIDEO MODAL ── */}
+      {videoOpen && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+          onClick={() => setVideoOpen(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-4xl relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setVideoOpen(null)}
+              className="absolute -top-12 right-0 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+              aria-label="Закрыть"
+            >
+              <Icon name="X" size={20} />
+            </button>
+            <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black">
+              <iframe
+                src={rutubeEmbedUrl(videoOpen.url)}
+                title={videoOpen.title}
+                allow="clipboard-write; autoplay"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            </div>
+            <p className="text-white text-center text-sm mt-3 px-4">{videoOpen.title}</p>
           </div>
         </div>
       )}
